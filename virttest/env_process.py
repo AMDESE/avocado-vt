@@ -109,7 +109,10 @@ postprocess_vm_off_hook = None
 
 #: QEMU version regex.  Attempts to extract the simple and extended version
 #: information from the output produced by `qemu -version`
-QEMU_VERSION_RE = r"QEMU (?:PC )?emulator version\s([0-9]+\.[0-9]+\.[0-9]+)\s?\((.*?)\)"
+#: Parenthetical build/distro suffix is optional.
+QEMU_VERSION_RE = (
+    r"QEMU (?:PC )?emulator version\s([0-9]+\.[0-9]+\.[0-9]+)(?:\s*\((.*?)\))?"
+)
 
 THREAD_ERROR = False
 

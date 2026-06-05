@@ -184,6 +184,7 @@ class DevContainer(object):
                     "commands are absent.",
                     qemu_binary,
                 )
+                return None
             return names
 
         self.__state = -1  # -1 synchronized, 0 synchronized after hotplug
@@ -213,8 +214,8 @@ class DevContainer(object):
         self.__qemu_help = self.execute_qemu("-help", 10)
         # escape the '?' otherwise it will fail if we have a single-char
         # filename in cwd
-        self.__device_help = self.execute_qemu("-device \? 2>&1", 10)
-        self.__object_help = self.execute_qemu("-object \? 2>&1", 10)
+        self.__device_help = self.execute_qemu(r"-device \? 2>&1", 10)
+        self.__object_help = self.execute_qemu(r"-object \? 2>&1", 10)
         self.__machines_info = utils_qemu.get_machines_info(qemu_binary)
         self.__hmp_cmds = get_hmp_cmds(basic_qemu_cmd)
         self.__qmp_cmds = get_qmp_cmds(
@@ -1145,7 +1146,7 @@ class DevContainer(object):
             bus_pattern = bus_pattern + "%s"
         missing_buses = [bus_pattern % i for i in xrange(bus_count)]
         for bus in self.__buses:
-            if bus.type == bus_type and re.match(bus_pattern % "\d+", bus.busid):
+            if bus.type == bus_type and re.match(bus_pattern % r"\d+", bus.busid):
                 if bus.busid in missing_buses:
                     missing_buses.remove(bus.busid)
         return missing_buses
@@ -1160,7 +1161,7 @@ class DevContainer(object):
             bus_pattern = bus_pattern + "%s"
         buses = []
         for bus in self.__buses:
-            if bus.busid and re.match(bus_pattern % "\d+", bus.busid):
+            if bus.busid and re.match(bus_pattern % r"\d+", bus.busid):
                 buses.append(bus.busid)
         i = 0
         while True:
@@ -2743,6 +2744,9 @@ class DevContainer(object):
                     ),
                 ):
                     protocol_node.set_param("aio", aio)
+                    if aio and fmt in ("scsi-generic",):
+                        LOG.warning(f'The driver {fmt} does not support "aio: {aio}"')
+                        protocol_node.set_param("aio", None)
             else:
                 devices[-1].set_param("aio", aio)
             if aio == "native":
@@ -2804,6 +2808,12 @@ class DevContainer(object):
                         self.cache_map[cache]["cache.direct"],
                         self.cache_map[cache]["cache.no-flush"],
                     )
+                    if fmt in ("scsi-generic",):
+                        LOG.warning(
+                            f"The driver {fmt} does not support "
+                            f'"cache.direct: {direct}, cache.no-flush: {no_flush}"'
+                        )
+                        direct, no_flush = (None, None)
                 dev.set_param("cache.direct", direct)
                 dev.set_param("cache.no-flush", no_flush)
             if top_node is not protocol_node:
@@ -2976,7 +2986,8 @@ class DevContainer(object):
         devices[-1].set_param("bootindex", bootindex)
         if Flags.BLOCKDEV in self.caps:
             if isinstance(protocol_node, qdevices.QBlockdevProtocolHostDevice):
-                self.cache_map[cache]["write-cache"] = None
+                if cache:
+                    self.cache_map[cache]["write-cache"] = None
             write_cache = None if not cache else self.cache_map[cache]["write-cache"]
             devices[-1].set_param("write-cache", write_cache)
             if "scsi-generic" == fmt:
@@ -4078,8 +4089,8 @@ class DevContainer(object):
 
             sev_obj_props.update(_gen_sev_common_props(params))
 
-            # Set policy=3 if vm_sev_policy is not set
-            sev_obj_props["policy"] = int(params.get("vm_sev_policy", 3))
+            # Set policy=0x3 if vm_sev_policy is not set
+            sev_obj_props["policy"] = params.get("vm_sev_policy", "0x3")
 
             # FIXME: If these files are host dependent, we have to find
             # another way to set them, because different files are needed
@@ -4104,6 +4115,9 @@ class DevContainer(object):
                 snp_obj_props.update(snp_opts)
 
             snp_obj_props.update(_gen_sev_common_props(params))
+
+            # Default to 0x30000 if vm_sev_policy is not set
+            snp_obj_props["policy"] = params.get("vm_sev_policy", "0x30000")
 
             return backend, snp_obj_props
 

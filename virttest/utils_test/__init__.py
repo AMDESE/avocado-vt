@@ -1304,6 +1304,7 @@ class AvocadoGuest(object):
         status, output = self.session.cmd_status_output(
             avocado_cmd, timeout=self.timeout
         )
+        LOG.debug("Test run command output:\n%s", output)
         if status != 0:
             # TODO: Map test return status with error strings and print
             LOG.error(
@@ -1327,6 +1328,7 @@ class AvocadoGuest(object):
         # result info tarball to host result dir
         results_tarball = os.path.join(self.test_path, "results.tgz")
         utils_package.package_install("tar", session=self.session)
+        utils_package.package_install("bzip2", session=self.session)
         compress_cmd = "cd %s && " % self.result_path
         compress_cmd += "tar cjvf %s" % results_tarball
         compress_cmd += " --exclude=*core*"
